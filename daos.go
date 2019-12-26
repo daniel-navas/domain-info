@@ -18,6 +18,12 @@ func mapDomainInfo(rawDom rawDomainInfo) domainInfo {
 	return domain
 }
 
+func mapAddressInfo(rawAddress rawAddressInfo, server serverInfo) serverInfo {
+	server.Country = rawAddress.CountryCode
+	server.Owner = rawAddress.ISP
+	return server
+}
+
 type rawDomainInfo struct {
 	Status    string         `json:"status"`
 	Endpoints []endpointInfo `json:"endpoints"`
@@ -29,6 +35,8 @@ type endpointInfo struct {
 }
 
 type rawAddressInfo struct {
+	CountryCode string `json:"countryCode"`
+	ISP         string `json:"isp"`
 }
 
 type domainInfo struct {
@@ -40,4 +48,6 @@ type domainInfo struct {
 type serverInfo struct {
 	Address  string `json:"address"`
 	SSLGrade string `json:"ssl_grade"`
+	Country  string `json:"country"`
+	Owner    string `json:"owner"`
 }
