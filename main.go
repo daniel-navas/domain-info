@@ -19,19 +19,13 @@ func getDomainInfo(w http.ResponseWriter, r *http.Request) {
 	resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url)
 	if err != nil {
 		log.Fatalf("HTTP request failed. %s\n", err)
-	} else {
-		defer resp.Body.Close()
-		var rawDom rawDomainInfo
-		json.NewDecoder(resp.Body).Decode(&rawDom)
-		domain := mapDomainInfo(rawDom)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(domain)
-		w.WriteHeader(http.StatusOK)
 	}
-}
+	defer resp.Body.Close()
+	var rawDom rawDomainInfo
+	json.NewDecoder(resp.Body).Decode(&rawDom)
+	domain := mapDomainInfo(rawDom)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(domain)
+	w.WriteHeader(http.StatusOK)
 
-func mapDomainInfo(rawDom rawDomainInfo) domainInfo {
-	var domain domainInfo
-	domain.IsDown = rawDom.Status != "READY"
-	return domain
 }
