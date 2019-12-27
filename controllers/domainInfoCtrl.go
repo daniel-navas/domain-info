@@ -1,17 +1,12 @@
 package controllers
 
 import (
-	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/dfnavas/domain-info/middleware"
 	"github.com/dfnavas/domain-info/storage"
 )
-
-type searchHistory struct {
-	items []DomainInfo
-}
 
 // DomainInfo :
 type DomainInfo struct {
@@ -27,7 +22,7 @@ type DomainInfo struct {
 // DomainInfoCtrl :
 type DomainInfoCtrl struct {
 	Get    func(string) (DomainInfo, error)
-	GetAll func() searchHistory
+	GetAll func() []storage.DomainHistory
 }
 
 func mapDomainInfo(rawDom middleware.DomainInfo,
@@ -63,31 +58,27 @@ func CreateCtrl(
 	repo *storage.DomainInfoRepo) *DomainInfoCtrl {
 	return &DomainInfoCtrl{
 		Get: func(url string) (DomainInfo, error) {
-			//FIRST WE JOIN ALL INFO-------
-			// Domain Info
+			// Get domain info from api.ssllabs.com
 			rawDomInfo, err := domainInfoXtractor.Get(url)
 			if err != nil {
 				return DomainInfo{}, err
 			}
-			//Then we get info per endpoint/server of domain
+			// Get address infor per server of domain
 			endpointsLength := len(rawDomInfo.Endpoints)
 			servers := make([]middleware.AddressInfo, endpointsLength)
 			for idx, endpoint := range rawDomInfo.Endpoints {
 				servers[idx] = addressInfoXtractor.Get(endpoint.IPAddress)
 			}
-			//Then we get title and logo info
+			// Det title and logo info
 			title, logo := tagXtractor.Get(url)
-			//And then we aggregate it all
+			// Map everything in one object
 			var newDomInfo storage.DomainInfo = mapDomainInfo(rawDomInfo, servers, title, logo)
-			//Then we get a previous registry of the given URL
+			// Get a previous record of the given host
 			oldDomInfo, err := repo.Get(url)
-			//Then we save the new one
+			// Save the new one record
 			repo.Upsert(newDomInfo)
-			//Finally, if there was no previous registry, or it was TOO old, then we ignore it and return
-			// Without providing PreviousSSLGrade or ServersChanged
-			fmt.Println("qqqq", oldDomInfo.LastUpdated)
-			fmt.Println("wwww", time.Now().Add(time.Duration(-3.6e+12)).Nanosecond())
-			fmt.Println("eeee", oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).Nanosecond())
+			// If no record or the last record is to young (1Hr)
+			// Return the domain info without providing PreviousSSLGrade or ServersChanged
 			if err != nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).Nanosecond() {
 				return DomainInfo{
 					IsDown:   newDomInfo.IsDown,
@@ -97,7 +88,7 @@ func CreateCtrl(
 					Logo:     newDomInfo.Logo,
 				}, nil
 			}
-			//Otherwise we return the full info
+			// Otherwise return domain info with PreviousSSLGrade and ServersChanged
 			return DomainInfo{
 				IsDown:           newDomInfo.IsDown,
 				Severs:           newDomInfo.Severs,
@@ -107,12 +98,10 @@ func CreateCtrl(
 				PreviousSSLGrade: oldDomInfo.SSLGrade,
 				ServersChanged:   !reflect.DeepEqual(newDomInfo.Severs, oldDomInfo.Severs),
 			}, nil
-
 		},
-		GetAll: func() searchHistory {
-			return searchHistory{
-				items: make([]DomainInfo, 0),
-			}
+		GetAll: func() []storage.DomainHistory {
+			history := repo.GetAll()
+			return history
 		},
 	}
 }

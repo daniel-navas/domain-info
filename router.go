@@ -27,14 +27,21 @@ func createRouter(ctrl *controllers.DomainInfoCtrl) *chi.Mux {
 	r.Get("/{url}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		url := chi.URLParam(r, "url")
-		info, err := ctrl.Get(url)
+		data, err := ctrl.Get(url)
 		if err != nil {
 			w.Write([]byte("{\"error\": \"" + err.Error() + "\"}"))
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
-			json.NewEncoder(w).Encode(info)
+			json.NewEncoder(w).Encode(data)
 			w.WriteHeader(http.StatusOK)
 		}
+	})
+
+	r.Get("/history", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		data := ctrl.GetAll()
+		json.NewEncoder(w).Encode(data)
+		w.WriteHeader(http.StatusOK)
 	})
 
 	return r

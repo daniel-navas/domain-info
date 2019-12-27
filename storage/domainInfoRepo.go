@@ -27,10 +27,19 @@ type DomainInfo struct {
 	LastUpdated int          `json:"last_updated"`
 }
 
+// DomainHistory :
+type DomainHistory struct {
+	Host     string       `json:"host"`
+	Severs   []ServerInfo `json:"servers"`
+	SSLGrade string       `json:"ssl_grade"`
+	Title    string       `json:"title"`
+	Logo     string       `json:"logo"`
+}
+
 // DomainInfoRepo :
 type DomainInfoRepo struct {
 	Get    func(string) (DomainInfo, error)
-	GetAll func() ([]DomainInfo, error)
+	GetAll func() []DomainHistory
 	Upsert func(DomainInfo) error
 }
 
@@ -48,7 +57,7 @@ func initDB(db *sql.DB) error {
 	return nil
 }
 
-//CreateRepo :
+// CreateRepo :
 func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -76,27 +85,23 @@ func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
 			}
 			return DomainInfo{}, errors.New("No records for domain: " + url)
 		},
-		GetAll: func() ([]DomainInfo, error) {
-			records := make([]DomainInfo, 0)
-			rows, err := db.Query(`SELECT d.host,d.data,d.last_updated FROM domains d`)
+		GetAll: func() []DomainHistory {
+			records := make([]DomainHistory, 0)
+			rows, err := db.Query(`SELECT d.host,d.data FROM domains d`)
 			if err != nil {
-				return records, err
+				log.Println("Error:", err)
+				return records
 			}
 			defer rows.Close()
 			for rows.Next() {
 				var host string
 				var data string
-				var lastUpdate int
-				rows.Scan(&host, &data, &lastUpdate)
-				var domRecord DomainInfo
+				rows.Scan(&host, &data)
+				var domRecord DomainHistory
 				json.Unmarshal([]byte(data), &domRecord)
-				domRecord.LastUpdated = lastUpdate
 				records = append(records, domRecord)
 			}
-			if len(records) > 0 {
-				return records, nil
-			}
-			return records, errors.New("No records")
+			return records
 		},
 		Upsert: func(seed DomainInfo) error {
 			seedJSON, err := json.Marshal(seed)
