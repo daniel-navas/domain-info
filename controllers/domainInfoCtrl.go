@@ -71,7 +71,7 @@ func CreateCtrl(
 			}
 			//Then we get info per endpoint/server of domain
 			endpointsLength := len(rawDomInfo.Endpoints)
-			servers := make([]middleware.AddressInfo, endpointsLength) //TODO change slice for array?
+			servers := make([]middleware.AddressInfo, endpointsLength)
 			for idx, endpoint := range rawDomInfo.Endpoints {
 				servers[idx] = addressInfoXtractor.Get(endpoint.IPAddress)
 			}

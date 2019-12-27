@@ -27,7 +27,7 @@ type DomainInfoXtractor struct {
 func CreateDomainInfoXtractor() *DomainInfoXtractor {
 	return &DomainInfoXtractor{
 		Get: func(url string) (DomainInfo, error) {
-			resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url) //TODO what should I return if this fails
+			resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url)
 			if err != nil {
 				log.Println("Error:", err)
 				return DomainInfo{}, err
