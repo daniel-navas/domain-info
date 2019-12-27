@@ -3,14 +3,11 @@ package storage
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"log"
 	"time"
-
-	//This imports postgress driver, still don't understand how
-	_ "github.com/lib/pq"
 )
 
+// ServerInfo :
 type ServerInfo struct {
 	Address  string `json:"address"`
 	SSLGrade string `json:"ssl_grade"`
@@ -18,6 +15,7 @@ type ServerInfo struct {
 	Owner    string `json:"owner"`
 }
 
+// DomainInfo :
 type DomainInfo struct {
 	IsDown      bool         `json:"is_down"`
 	Severs      []ServerInfo `json:"servers"`
@@ -27,6 +25,7 @@ type DomainInfo struct {
 	LastUpdated time.Time    `json:"last_updated"`
 }
 
+// DomainInfoRepo :
 type DomainInfoRepo struct {
 	Get    func(string) (DomainInfo, error)
 	GetAll func() []DomainInfo
@@ -34,51 +33,59 @@ type DomainInfoRepo struct {
 }
 
 func initDB(db *sql.DB) error {
-	//Remember to
-	db.Exec(`
-	create table if not exists domains(
-		host varchar not null primary key,
-		data jsonb not null,
-		last_updated timestamp not null
-	);
-	`)
-	if _, err := db.Exec(`upsert into domains(host,data,last_updated)values($1,$2,$3)`, "pepe.com", "{}", time.Now()); err != nil {
-		fmt.Println(err)
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS domains (
+			host VARCHAR NOT NULL PRIMARY KEY,
+			data JSON NOT NULL,
+			last_update TIMESTAMP NOT NULL
+		);
+	`); err != nil {
+		log.Fatal(err)
 	}
-	rows, err := db.Query(`
-		select * from domains;
-	`)
-	defer rows.Close()
-	if err != nil {
-		fmt.Println(err)
-		return err
-	} else {
-		for rows.Next() {
-			var host string
-			var data string
-			var lastUpdated time.Time
-			err := rows.Scan(&host, &data, &lastUpdated)
-			if err != nil {
-				fmt.Println(err)
-			} else {
-				fmt.Println("alskjdlakjsdjlkas")
-				fmt.Println(host)
-				fmt.Println(data)
-				fmt.Println(lastUpdated)
-			}
-		}
-		return nil
+
+	if _, err := db.Exec(
+		`UPSERT INTO domains (host, data, last_update) VALUES ($1, $2, $3)`, "test.com", "{}", time.Now()); err != nil {
+		log.Fatal(err)
 	}
+
+	// rows, err := db.Query(`
+	// 	select * from domains;
+	// `)
+
+	// defer rows.Close()
+
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return err
+	// }
+
+	// for rows.Next() {
+	// 	var host string
+	// 	var data string
+	// 	var lastUpdated time.Time
+	// 	err := rows.Scan(&host, &data, &lastUpdated)
+
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 	} else {
+	// 		fmt.Println(host)
+	// 		fmt.Println(data)
+	// 		fmt.Println(lastUpdated)
+	// 	}
+	// }
+
+	return nil
 }
 
+//CreateRepo :
 func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
-
 	db, err := sql.Open("postgres", dbURL)
+
 	if err != nil {
-		fmt.Println("aljksjkdlaskjdlaksjdlaskjd111")
-		log.Fatal("error connecting to the database: ", err)
+		log.Fatal("Error connecting to the database: ", err)
 		return nil, err
 	}
+
 	initDB(db)
 
 	return &DomainInfoRepo{
@@ -91,7 +98,6 @@ func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
 			return make([]DomainInfo, 0)
 		},
 		Upsert: func(seed DomainInfo) {
-
 		},
 	}, nil
 }

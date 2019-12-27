@@ -6,32 +6,36 @@ import (
 	"net/http"
 )
 
-type EndpointInfo struct {
+type endpointInfo struct {
 	IPAddress string `json:"ipAddress"`
 	Grade     string `json:"grade"`
 }
+
+// DomainInfo :
 type DomainInfo struct {
 	Status    string         `json:"status"`
-	Endpoints []EndpointInfo `json:"endpoints"`
+	Endpoints []endpointInfo `json:"endpoints"`
 }
 
+// DomainInfoXtractor :
 type DomainInfoXtractor struct {
-	Get func(string) DomainInfo
+	Get func(string) (DomainInfo, error)
 }
 
+// CreateDomainInfoXtractor :
 func CreateDomainInfoXtractor() *DomainInfoXtractor {
 	return &DomainInfoXtractor{
-		Get: func(url string) DomainInfo {
-			//TODO
-
-			resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url)
+		Get: func(url string) (DomainInfo, error) {
+			var rawDom DomainInfo
+			resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url) //TODO what should I return if this fails
 			if err != nil {
 				log.Printf("HTTP request failed. %s\n", err)
+				return rawDom, err
 			}
 			defer resp.Body.Close()
-			var rawDom DomainInfo
 			json.NewDecoder(resp.Body).Decode(&rawDom)
-			return rawDom
+
+			return rawDom, nil
 		},
 	}
 }

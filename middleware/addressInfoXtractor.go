@@ -6,15 +6,18 @@ import (
 	"net/http"
 )
 
+// AddressInfo :
 type AddressInfo struct {
 	CountryCode string `json:"countryCode"`
 	ISP         string `json:"isp"`
 }
 
+// AddressInfoXtractor :
 type AddressInfoXtractor struct {
 	Get func(string) AddressInfo
 }
 
+// CreateAddressInfoXtractor :
 func CreateAddressInfoXtractor() *AddressInfoXtractor {
 
 	return &AddressInfoXtractor{
