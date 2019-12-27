@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log"
 	"time"
@@ -17,6 +18,7 @@ type ServerInfo struct {
 
 // DomainInfo :
 type DomainInfo struct {
+	Host        string       `json:"host"`
 	IsDown      bool         `json:"is_down"`
 	Severs      []ServerInfo `json:"servers"`
 	SSLGrade    string       `json:"ssl_grade"`
@@ -40,11 +42,6 @@ func initDB(db *sql.DB) error {
 			last_update TIMESTAMP NOT NULL
 		);
 	`); err != nil {
-		log.Fatal(err)
-	}
-
-	if _, err := db.Exec(
-		`UPSERT INTO domains (host, data, last_update) VALUES ($1, $2, $3)`, "test.com", "{}", time.Now()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -98,6 +95,15 @@ func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
 			return make([]DomainInfo, 0)
 		},
 		Upsert: func(seed DomainInfo) {
+			seedJSON, err := json.Marshal(seed)
+			if err != nil {
+				log.Println("error:", err) //TODO
+			} else {
+				if _, err := db.Exec(
+					`UPSERT INTO domains (host, data, last_update) VALUES ($1, $2, $3)`, seed.Host, seedJSON, time.Now()); err != nil {
+					log.Fatal(err)
+				}
+			}
 		},
 	}, nil
 }

@@ -29,9 +29,10 @@ type DomainInfoCtrl struct {
 func mapDomainInfo(rawDom middleware.DomainInfo,
 	addressesInfo []middleware.AddressInfo,
 	title string, logo string) storage.DomainInfo {
-	var grades = map[string]int{"A+": 10, "A": 9, "A-": 8, "B": 7, "C": 6, "D": 5, "E": 4, "F": 3, "M": 2, "T": 1}
 	var domain storage.DomainInfo
+	var grades = map[string]int{"A+": 10, "A": 9, "A-": 8, "B": 7, "C": 6, "D": 5, "E": 4, "F": 3, "M": 2, "T": 1}
 	lowestGrade := "A+"
+	domain.Host = rawDom.Host
 	domain.IsDown = rawDom.Status == "DNS"
 	for idx, ep := range rawDom.Endpoints {
 		var server storage.ServerInfo

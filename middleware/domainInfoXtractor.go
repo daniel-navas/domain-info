@@ -13,6 +13,7 @@ type endpointInfo struct {
 
 // DomainInfo :
 type DomainInfo struct {
+	Host      string         `json:"host"`
 	Status    string         `json:"status"`
 	Endpoints []endpointInfo `json:"endpoints"`
 }
