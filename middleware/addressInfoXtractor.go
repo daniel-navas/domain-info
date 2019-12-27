@@ -24,7 +24,8 @@ func CreateAddressInfoXtractor() *AddressInfoXtractor {
 		Get: func(address string) AddressInfo {
 			resp, err := http.Get("http://ip-api.com/json/" + address)
 			if err != nil {
-				log.Printf("HTTP request failed. %s\n", err)
+				log.Println("Error:", err)
+				return AddressInfo{"unavailable", "unavailable"}
 			}
 			defer resp.Body.Close()
 			var rawAddress AddressInfo

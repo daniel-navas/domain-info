@@ -24,14 +24,14 @@ type DomainInfo struct {
 	SSLGrade    string       `json:"ssl_grade"`
 	Title       string       `json:"title"`
 	Logo        string       `json:"logo"`
-	LastUpdated time.Time    `json:"last_updated"`
+	LastUpdated int          `json:"last_updated"`
 }
 
 // DomainInfoRepo :
 type DomainInfoRepo struct {
 	Get    func(string) (DomainInfo, error)
-	GetAll func() []DomainInfo
-	Upsert func(DomainInfo)
+	GetAll func() ([]DomainInfo, error)
+	Upsert func(DomainInfo) error
 }
 
 func initDB(db *sql.DB) error {
@@ -39,47 +39,19 @@ func initDB(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS domains (
 			host VARCHAR NOT NULL PRIMARY KEY,
 			data JSON NOT NULL,
-			last_update TIMESTAMP NOT NULL
+			last_updated BIGINT NOT NULL
 		);
 	`); err != nil {
-		log.Fatal(err)
+		log.Fatalln("Error:", err)
+		return err
 	}
-
-	// rows, err := db.Query(`
-	// 	select * from domains;
-	// `)
-
-	// defer rows.Close()
-
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return err
-	// }
-
-	// for rows.Next() {
-	// 	var host string
-	// 	var data string
-	// 	var lastUpdated time.Time
-	// 	err := rows.Scan(&host, &data, &lastUpdated)
-
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 	} else {
-	// 		fmt.Println(host)
-	// 		fmt.Println(data)
-	// 		fmt.Println(lastUpdated)
-	// 	}
-	// }
-
 	return nil
 }
 
 //CreateRepo :
 func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
 	db, err := sql.Open("postgres", dbURL)
-
 	if err != nil {
-		log.Fatal("Error connecting to the database: ", err)
 		return nil, err
 	}
 
@@ -87,23 +59,57 @@ func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
 
 	return &DomainInfoRepo{
 		Get: func(url string) (DomainInfo, error) {
-
-			return DomainInfo{}, errors.New("No info for domain: " + url)
+			rows, err := db.Query(`SELECT d.host,d.data,d.last_updated FROM domains d WHERE d.host = $1	LIMIT 1`, url)
+			if err != nil {
+				return DomainInfo{}, err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var host string
+				var data string
+				var lastUpdate int
+				rows.Scan(&host, &data, &lastUpdate)
+				var domRecord DomainInfo
+				json.Unmarshal([]byte(data), &domRecord)
+				domRecord.LastUpdated = lastUpdate
+				return domRecord, nil
+			}
+			return DomainInfo{}, errors.New("No records for domain: " + url)
 		},
-		GetAll: func() []DomainInfo {
-
-			return make([]DomainInfo, 0)
+		GetAll: func() ([]DomainInfo, error) {
+			records := make([]DomainInfo, 0)
+			rows, err := db.Query(`SELECT d.host,d.data,d.last_updated FROM domains d`)
+			if err != nil {
+				return records, err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var host string
+				var data string
+				var lastUpdate int
+				rows.Scan(&host, &data, &lastUpdate)
+				var domRecord DomainInfo
+				json.Unmarshal([]byte(data), &domRecord)
+				domRecord.LastUpdated = lastUpdate
+				records = append(records, domRecord)
+			}
+			if len(records) > 0 {
+				return records, nil
+			}
+			return records, errors.New("No records")
 		},
-		Upsert: func(seed DomainInfo) {
+		Upsert: func(seed DomainInfo) error {
 			seedJSON, err := json.Marshal(seed)
 			if err != nil {
-				log.Println("error:", err) //TODO
-			} else {
-				if _, err := db.Exec(
-					`UPSERT INTO domains (host, data, last_update) VALUES ($1, $2, $3)`, seed.Host, seedJSON, time.Now()); err != nil {
-					log.Fatal(err)
-				}
+				log.Println("Error:", err)
+				return err
+			} else if _, err := db.Exec(
+				`UPSERT INTO domains (host, data, last_updated) VALUES ($1, $2, $3)`,
+				seed.Host, seedJSON, time.Now().Nanosecond()); err != nil {
+				log.Fatalln("Error:", err)
+				return err
 			}
+			return nil
 		},
 	}, nil
 }

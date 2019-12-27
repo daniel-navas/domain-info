@@ -13,11 +13,10 @@ import (
 func main() {
 	domainInfoXtrator := middleware.CreateDomainInfoXtractor()
 	tagXtractor := middleware.CreateTagXtractor()
-	// repo, err := storage.CreateRepo("postgresql://root@localhost:26257?sslmode=disable")
-	repo, err := storage.CreateRepo("postgresql://maxroach@localhost:26257/bank?sslmode=disable")
 
+	repo, err := storage.CreateRepo("postgresql://maxroach@localhost:26257/domainsdb?sslmode=disable")
 	if err != nil {
-		log.Fatal("Error connecting to the database: ", err) //TDOD should this shutdown everything?
+		log.Fatalln("Error connecting to the database: ", err)
 	} else {
 		addressInfoXtractor := middleware.CreateAddressInfoXtractor()
 		ctrl := controllers.CreateCtrl(tagXtractor, domainInfoXtrator, addressInfoXtractor, repo)

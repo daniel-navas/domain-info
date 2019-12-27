@@ -27,13 +27,13 @@ type DomainInfoXtractor struct {
 func CreateDomainInfoXtractor() *DomainInfoXtractor {
 	return &DomainInfoXtractor{
 		Get: func(url string) (DomainInfo, error) {
-			var rawDom DomainInfo
 			resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url) //TODO what should I return if this fails
 			if err != nil {
-				log.Printf("HTTP request failed. %s\n", err)
-				return rawDom, err
+				log.Println("Error:", err)
+				return DomainInfo{}, err
 			}
 			defer resp.Body.Close()
+			var rawDom DomainInfo
 			json.NewDecoder(resp.Body).Decode(&rawDom)
 
 			return rawDom, nil

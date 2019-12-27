@@ -1,6 +1,10 @@
 package controllers
 
 import (
+	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/dfnavas/domain-info/middleware"
 	"github.com/dfnavas/domain-info/storage"
 )
@@ -59,34 +63,51 @@ func CreateCtrl(
 	repo *storage.DomainInfoRepo) *DomainInfoCtrl {
 	return &DomainInfoCtrl{
 		Get: func(url string) (DomainInfo, error) {
-			var domInfo DomainInfo
+			//FIRST WE JOIN ALL INFO-------
+			// Domain Info
 			rawDomInfo, err := domainInfoXtractor.Get(url)
 			if err != nil {
-				return domInfo, err
+				return DomainInfo{}, err
 			}
+			//Then we get info per endpoint/server of domain
 			endpointsLength := len(rawDomInfo.Endpoints)
 			servers := make([]middleware.AddressInfo, endpointsLength) //TODO change slice for array?
 			for idx, endpoint := range rawDomInfo.Endpoints {
 				servers[idx] = addressInfoXtractor.Get(endpoint.IPAddress)
 			}
+			//Then we get title and logo info
 			title, logo := tagXtractor.Get(url)
+			//And then we aggregate it all
 			var newDomInfo storage.DomainInfo = mapDomainInfo(rawDomInfo, servers, title, logo)
-			// oldDomInfo, err := repo.Get(url)
+			//Then we get a previous registry of the given URL
+			oldDomInfo, err := repo.Get(url)
+			//Then we save the new one
 			repo.Upsert(newDomInfo)
-			domInfo = DomainInfo{
-				IsDown:   newDomInfo.IsDown,
-				Severs:   newDomInfo.Severs,
-				SSLGrade: newDomInfo.SSLGrade,
-				Title:    newDomInfo.Title,
-				Logo:     newDomInfo.Logo,
+			//Finally, if there was no previous registry, or it was TOO old, then we ignore it and return
+			// Without providing PreviousSSLGrade or ServersChanged
+			fmt.Println("qqqq", oldDomInfo.LastUpdated)
+			fmt.Println("wwww", time.Now().Add(time.Duration(-3.6e+12)).Nanosecond())
+			fmt.Println("eeee", oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).Nanosecond())
+			if err != nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).Nanosecond() {
+				return DomainInfo{
+					IsDown:   newDomInfo.IsDown,
+					Severs:   newDomInfo.Severs,
+					SSLGrade: newDomInfo.SSLGrade,
+					Title:    newDomInfo.Title,
+					Logo:     newDomInfo.Logo,
+				}, nil
 			}
-			// if err != nil {
-			// 	return result
-			// } else {
-			// 	fmt.Println(oldDomInfo)
-			// 	//TODO add PreviousSSLGrade and ServersChanged
-			return domInfo, nil
-			// }
+			//Otherwise we return the full info
+			return DomainInfo{
+				IsDown:           newDomInfo.IsDown,
+				Severs:           newDomInfo.Severs,
+				SSLGrade:         newDomInfo.SSLGrade,
+				Title:            newDomInfo.Title,
+				Logo:             newDomInfo.Logo,
+				PreviousSSLGrade: oldDomInfo.SSLGrade,
+				ServersChanged:   !reflect.DeepEqual(newDomInfo.Severs, oldDomInfo.Severs),
+			}, nil
+
 		},
 		GetAll: func() searchHistory {
 			return searchHistory{
