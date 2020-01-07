@@ -7,11 +7,10 @@ import (
 )
 
 // TagXtractor :
-type TagXtractor struct {
-	Get func(string) (string, string)
-}
+type TagXtractor struct{}
 
-func getTitleAndLogo(url string) (string, string) {
+// GetTitleAndLogo :
+func (tx *TagXtractor) GetTitleAndLogo(url string) (string, string) {
 	resp, err := soup.Get("https://" + url)
 	if err != nil {
 		log.Println("Error:", err)
@@ -20,6 +19,9 @@ func getTitleAndLogo(url string) (string, string) {
 	doc := soup.HTMLParse(resp)
 	titleNode := doc.Find("title")
 	logoNode := doc.Find("link", "rel", "shortcut")
+	if logoNode.Error != nil {
+		logoNode = doc.Find("link", "rel", "icon")
+	}
 	var title string
 	var logo string
 	if titleNode.Error != nil {
@@ -31,16 +33,8 @@ func getTitleAndLogo(url string) (string, string) {
 	if logoNode.Error != nil {
 		logo = "Not found"
 		log.Println("Error:", logoNode.Error)
-
 	} else {
 		logo = logoNode.Attrs()["href"]
 	}
 	return title, logo
-}
-
-// CreateTagXtractor :
-func CreateTagXtractor() *TagXtractor {
-	return &TagXtractor{
-		Get: getTitleAndLogo,
-	}
 }

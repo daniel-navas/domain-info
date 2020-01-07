@@ -19,24 +19,18 @@ type DomainInfo struct {
 }
 
 // DomainInfoXtractor :
-type DomainInfoXtractor struct {
-	Get func(string) (DomainInfo, error)
-}
+type DomainInfoXtractor struct{}
 
-// CreateDomainInfoXtractor :
-func CreateDomainInfoXtractor() *DomainInfoXtractor {
-	return &DomainInfoXtractor{
-		Get: func(url string) (DomainInfo, error) {
-			resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url)
-			if err != nil {
-				log.Println("Error:", err)
-				return DomainInfo{}, err
-			}
-			defer resp.Body.Close()
-			var rawDom DomainInfo
-			json.NewDecoder(resp.Body).Decode(&rawDom)
-
-			return rawDom, nil
-		},
+// Get :
+func (dix *DomainInfoXtractor) Get(url string) (DomainInfo, error) {
+	resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + url)
+	if err != nil {
+		log.Println("Error:", err)
+		return DomainInfo{}, err
 	}
+	defer resp.Body.Close()
+	var rawDom DomainInfo
+	json.NewDecoder(resp.Body).Decode(&rawDom)
+
+	return rawDom, nil
 }

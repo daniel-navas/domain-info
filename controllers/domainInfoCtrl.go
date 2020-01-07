@@ -25,14 +25,18 @@ type DomainInfoCtrl struct {
 	GetAll func() []storage.DomainHistory
 }
 
-func mapDomainInfo(rawDom middleware.DomainInfo,
+func mapDomainInfo(rawDom *middleware.DomainInfo,
 	addressesInfo []middleware.AddressInfo,
 	title string, logo string) storage.DomainInfo {
 	var domain storage.DomainInfo
+	domain.Host = rawDom.Host
+	domain.IsDown = rawDom.Status == "DNS" || rawDom.Status == "ERROR"
+	domain.Severs = []storage.ServerInfo{}
+	if domain.IsDown {
+		return domain
+	}
 	var grades = map[string]int{"A+": 10, "A": 9, "A-": 8, "B": 7, "C": 6, "D": 5, "E": 4, "F": 3, "M": 2, "T": 1}
 	lowestGrade := "A+"
-	domain.Host = rawDom.Host
-	domain.IsDown = rawDom.Status == "DNS"
 	for idx, ep := range rawDom.Endpoints {
 		var server storage.ServerInfo
 		server.Address = ep.IPAddress
@@ -70,34 +74,29 @@ func CreateCtrl(
 				servers[idx] = addressInfoXtractor.Get(endpoint.IPAddress)
 			}
 			// Det title and logo info
-			title, logo := tagXtractor.Get(url)
+			title, logo := tagXtractor.GetTitleAndLogo(url)
 			// Map everything in one object
-			var newDomInfo storage.DomainInfo = mapDomainInfo(rawDomInfo, servers, title, logo)
+			var newDomInfo storage.DomainInfo = mapDomainInfo(&rawDomInfo, servers, title, logo)
 			// Get a previous record of the given host
 			oldDomInfo, err := repo.Get(url)
 			// Save the new one record
 			repo.Upsert(newDomInfo)
 			// If no record or the last record is to young (1Hr)
 			// Return the domain info without providing PreviousSSLGrade or ServersChanged
+			domInfo := DomainInfo{
+				IsDown:   newDomInfo.IsDown,
+				Severs:   newDomInfo.Severs,
+				SSLGrade: newDomInfo.SSLGrade,
+				Title:    newDomInfo.Title,
+				Logo:     newDomInfo.Logo,
+			}
 			if err != nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).Nanosecond() {
-				return DomainInfo{
-					IsDown:   newDomInfo.IsDown,
-					Severs:   newDomInfo.Severs,
-					SSLGrade: newDomInfo.SSLGrade,
-					Title:    newDomInfo.Title,
-					Logo:     newDomInfo.Logo,
-				}, nil
+				return domInfo, nil
 			}
 			// Otherwise return domain info with PreviousSSLGrade and ServersChanged
-			return DomainInfo{
-				IsDown:           newDomInfo.IsDown,
-				Severs:           newDomInfo.Severs,
-				SSLGrade:         newDomInfo.SSLGrade,
-				Title:            newDomInfo.Title,
-				Logo:             newDomInfo.Logo,
-				PreviousSSLGrade: oldDomInfo.SSLGrade,
-				ServersChanged:   !reflect.DeepEqual(newDomInfo.Severs, oldDomInfo.Severs),
-			}, nil
+			domInfo.PreviousSSLGrade = oldDomInfo.SSLGrade
+			domInfo.ServersChanged = !reflect.DeepEqual(newDomInfo.Severs, oldDomInfo.Severs)
+			return domInfo, nil
 		},
 		GetAll: func() []storage.DomainHistory {
 			history := repo.GetAll()

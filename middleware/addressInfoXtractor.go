@@ -13,26 +13,18 @@ type AddressInfo struct {
 }
 
 // AddressInfoXtractor :
-type AddressInfoXtractor struct {
-	Get func(string) AddressInfo
-}
+type AddressInfoXtractor struct{}
 
-// CreateAddressInfoXtractor :
-func CreateAddressInfoXtractor() *AddressInfoXtractor {
-
-	return &AddressInfoXtractor{
-		Get: func(address string) AddressInfo {
-			resp, err := http.Get("http://ip-api.com/json/" + address)
-			if err != nil {
-				log.Println("Error:", err)
-				return AddressInfo{"unavailable", "unavailable"}
-			}
-			defer resp.Body.Close()
-			var rawAddress AddressInfo
-			json.NewDecoder(resp.Body).Decode(&rawAddress)
-
-			return rawAddress
-		},
+// Get :
+func (aix *AddressInfoXtractor) Get(address string) AddressInfo {
+	resp, err := http.Get("http://ip-api.com/json/" + address)
+	if err != nil {
+		log.Println("Error:", err)
+		return AddressInfo{"unavailable", "unavailable"}
 	}
+	defer resp.Body.Close()
+	var rawAddress AddressInfo
+	json.NewDecoder(resp.Body).Decode(&rawAddress)
 
+	return rawAddress
 }

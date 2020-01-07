@@ -38,9 +38,7 @@ type DomainHistory struct {
 
 // DomainInfoRepo :
 type DomainInfoRepo struct {
-	Get    func(string) (DomainInfo, error)
-	GetAll func() []DomainHistory
-	Upsert func(DomainInfo) error
+	db *sql.DB
 }
 
 func initDB(db *sql.DB) error {
@@ -57,64 +55,67 @@ func initDB(db *sql.DB) error {
 	return nil
 }
 
-// CreateRepo :
-func CreateRepo(dbURL string) (*DomainInfoRepo, error) {
+// NewDomainInfoRepo :
+func NewDomainInfoRepo(dbURL string) (*DomainInfoRepo, error) {
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		return nil, err
 	}
-
 	initDB(db)
+	return &DomainInfoRepo{db}, nil
+}
 
-	return &DomainInfoRepo{
-		Get: func(url string) (DomainInfo, error) {
-			rows, err := db.Query(`SELECT d.host,d.data,d.last_updated FROM domains d WHERE d.host = $1	LIMIT 1`, url)
-			if err != nil {
-				return DomainInfo{}, err
-			}
-			defer rows.Close()
-			for rows.Next() {
-				var host string
-				var data string
-				var lastUpdate int
-				rows.Scan(&host, &data, &lastUpdate)
-				var domRecord DomainInfo
-				json.Unmarshal([]byte(data), &domRecord)
-				domRecord.LastUpdated = lastUpdate
-				return domRecord, nil
-			}
-			return DomainInfo{}, errors.New("No records for domain: " + url)
-		},
-		GetAll: func() []DomainHistory {
-			records := make([]DomainHistory, 0)
-			rows, err := db.Query(`SELECT d.host,d.data FROM domains d`)
-			if err != nil {
-				log.Println("Error:", err)
-				return records
-			}
-			defer rows.Close()
-			for rows.Next() {
-				var host string
-				var data string
-				rows.Scan(&host, &data)
-				var domRecord DomainHistory
-				json.Unmarshal([]byte(data), &domRecord)
-				records = append(records, domRecord)
-			}
-			return records
-		},
-		Upsert: func(seed DomainInfo) error {
-			seedJSON, err := json.Marshal(seed)
-			if err != nil {
-				log.Println("Error:", err)
-				return err
-			} else if _, err := db.Exec(
-				`UPSERT INTO domains (host, data, last_updated) VALUES ($1, $2, $3)`,
-				seed.Host, seedJSON, time.Now().Nanosecond()); err != nil {
-				log.Fatalln("Error:", err)
-				return err
-			}
-			return nil
-		},
-	}, nil
+// Get :
+func (dir *DomainInfoRepo) Get(url string) (DomainInfo, error) {
+	rows, err := dir.db.Query(`SELECT d.host,d.data,d.last_updated FROM domains d WHERE d.host = $1	LIMIT 1`, url)
+	if err != nil {
+		return DomainInfo{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var host string
+		var data string
+		var lastUpdate int
+		rows.Scan(&host, &data, &lastUpdate)
+		var domRecord DomainInfo
+		json.Unmarshal([]byte(data), &domRecord)
+		domRecord.LastUpdated = lastUpdate
+		return domRecord, nil
+	}
+	return DomainInfo{}, errors.New("No records for domain: " + url)
+}
+
+// GetAll :
+func (dir *DomainInfoRepo) GetAll() []DomainHistory {
+	records := make([]DomainHistory, 0)
+	rows, err := dir.db.Query(`SELECT d.host,d.data FROM domains d`)
+	if err != nil {
+		log.Println("Error:", err)
+		return records
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var host string
+		var data string
+		rows.Scan(&host, &data)
+		var domRecord DomainHistory
+		json.Unmarshal([]byte(data), &domRecord)
+		records = append(records, domRecord)
+	}
+	return records
+}
+
+// Upsert :
+func (dir *DomainInfoRepo) Upsert(seed DomainInfo) error {
+	seedJSON, err := json.Marshal(seed)
+	if err != nil {
+		log.Println("Error:", err)
+		return err
+	} else if _, err := dir.db.Exec(
+		`UPSERT INTO domains (host, data, last_updated) VALUES ($1, $2, $3)`,
+		seed.Host, seedJSON, time.Now().Nanosecond()); err != nil {
+		log.Fatalln("Error:", err)
+		return err
+	}
+	return nil
 }
