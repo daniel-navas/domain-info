@@ -24,7 +24,7 @@ type DomainInfo struct {
 	SSLGrade    string       `json:"ssl_grade"`
 	Title       string       `json:"title"`
 	Logo        string       `json:"logo"`
-	LastUpdated int          `json:"last_updated"`
+	LastUpdated int64        `json:"last_updated"`
 }
 
 // DomainHistory :
@@ -75,7 +75,7 @@ func (dir *DomainInfoRepo) Get(url string) (DomainInfo, error) {
 	for rows.Next() {
 		var host string
 		var data string
-		var lastUpdate int
+		var lastUpdate int64
 		rows.Scan(&host, &data, &lastUpdate)
 		var domRecord DomainInfo
 		json.Unmarshal([]byte(data), &domRecord)
@@ -113,7 +113,7 @@ func (dir *DomainInfoRepo) Upsert(seed DomainInfo) error {
 		return err
 	} else if _, err := dir.db.Exec(
 		`UPSERT INTO domains (host, data, last_updated) VALUES ($1, $2, $3)`,
-		seed.Host, seedJSON, time.Now().Nanosecond()); err != nil {
+		seed.Host, seedJSON, time.Now().UnixNano()); err != nil {
 		log.Fatalln("Error:", err)
 		return err
 	}

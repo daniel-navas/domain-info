@@ -90,7 +90,7 @@ func CreateCtrl(
 				Title:    newDomInfo.Title,
 				Logo:     newDomInfo.Logo,
 			}
-			if err != nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).Nanosecond() {
+			if err != nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).UnixNano() {
 				return domInfo, nil
 			}
 			// Otherwise return domain info with PreviousSSLGrade and ServersChanged
