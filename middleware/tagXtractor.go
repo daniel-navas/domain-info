@@ -7,10 +7,19 @@ import (
 )
 
 // TagXtractor :
-type TagXtractor struct{}
+type TagXtractor interface {
+	GetTitleAndLogo(url string) (string, string)
+}
+
+type tagXtractorDeps struct{}
+
+// NewTagXtractor :
+func NewTagXtractor() TagXtractor {
+	return &tagXtractorDeps{}
+}
 
 // GetTitleAndLogo :
-func (tx *TagXtractor) GetTitleAndLogo(url string) (string, string) {
+func (tx *tagXtractorDeps) GetTitleAndLogo(url string) (string, string) {
 	resp, err := soup.Get("https://" + url)
 	if err != nil {
 		log.Println("Error:", err)

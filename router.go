@@ -9,7 +9,11 @@ import (
 	"github.com/go-chi/cors"
 )
 
-func createRouter(ctrl *controllers.DomainInfoCtrl) *chi.Mux {
+type errorObj struct {
+	Error string `json:"error"`
+}
+
+func createRouter(ctrl controllers.DomainInfoCtrl) *chi.Mux {
 	r := chi.NewRouter()
 
 	cors := cors.New(cors.Options{
@@ -29,7 +33,7 @@ func createRouter(ctrl *controllers.DomainInfoCtrl) *chi.Mux {
 		url := chi.URLParam(r, "url")
 		data, err := ctrl.Get(url)
 		if err != nil {
-			w.Write([]byte("{\"error\": \"" + err.Error() + "\"}"))
+			json.NewEncoder(w).Encode(errorObj{err.Error()})
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			json.NewEncoder(w).Encode(data)

@@ -8,6 +8,12 @@ import (
 	"github.com/dfnavas/domain-info/storage"
 )
 
+// DomainInfoCtrl :
+type DomainInfoCtrl interface {
+	Get(string) (*DomainInfo, error)
+	GetAll() []*storage.DomainHistory
+}
+
 // DomainInfo :
 type DomainInfo struct {
 	IsDown           bool                 `json:"is_down"`
@@ -19,21 +25,81 @@ type DomainInfo struct {
 	Logo             string               `json:"logo"`
 }
 
-// DomainInfoCtrl :
-type DomainInfoCtrl struct {
-	Get    func(string) (DomainInfo, error)
-	GetAll func() []storage.DomainHistory
+type domainInfoCtrlDeps struct {
+	tagXtractor         middleware.TagXtractor
+	domainInfoXtractor  middleware.DomainInfoXtractor
+	addressInfoXtractor middleware.AddressInfoXtractor
+	repo                storage.DomainInfoRepo
+}
+
+// CreateCtrl :
+func CreateCtrl(
+	tagXtractor middleware.TagXtractor,
+	domainInfoXtractor middleware.DomainInfoXtractor,
+	addressInfoXtractor middleware.AddressInfoXtractor,
+	repo storage.DomainInfoRepo) DomainInfoCtrl {
+	return &domainInfoCtrlDeps{tagXtractor,
+		domainInfoXtractor,
+		addressInfoXtractor,
+		repo}
+}
+
+func (ctrl *domainInfoCtrlDeps) Get(url string) (*DomainInfo, error) {
+	// Get domain info from api.ssllabs.com
+	rawDomInfo, err := ctrl.domainInfoXtractor.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	// Get address infor per server of domain
+	endpointsLength := len(rawDomInfo.Endpoints)
+	servers := make([]*middleware.AddressInfo, endpointsLength)
+	for idx, endpoint := range rawDomInfo.Endpoints {
+		info, err := ctrl.addressInfoXtractor.Get(endpoint.IPAddress)
+		if err != nil {
+			return nil, err
+		}
+		servers[idx] = info
+	}
+	// Get title and logo info
+	title, logo := ctrl.tagXtractor.GetTitleAndLogo(url)
+	// Map everything in one object
+	var newDomInfo storage.DomainInfo = *mapDomainInfo(rawDomInfo, servers, title, logo)
+	// Get a previous record of the given host
+	oldDomInfo, err := ctrl.repo.Get(url)
+	// Save the new one record
+	ctrl.repo.Upsert(newDomInfo)
+	// If no record or the last record is to young (1Hr)
+	// Return the domain info without providing PreviousSSLGrade or ServersChanged
+	domInfo := DomainInfo{
+		IsDown:   newDomInfo.IsDown,
+		Severs:   newDomInfo.Severs,
+		SSLGrade: newDomInfo.SSLGrade,
+		Title:    newDomInfo.Title,
+		Logo:     newDomInfo.Logo,
+	}
+	if err != nil || oldDomInfo == nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).UnixNano() {
+		return &domInfo, nil
+	}
+	// Otherwise return domain info with PreviousSSLGrade and ServersChanged
+	domInfo.PreviousSSLGrade = oldDomInfo.SSLGrade
+	domInfo.ServersChanged = !reflect.DeepEqual(newDomInfo.Severs, oldDomInfo.Severs)
+	return &domInfo, nil
+}
+
+func (ctrl *domainInfoCtrlDeps) GetAll() []*storage.DomainHistory {
+	history := ctrl.repo.GetAll()
+	return history
 }
 
 func mapDomainInfo(rawDom *middleware.DomainInfo,
-	addressesInfo []middleware.AddressInfo,
-	title string, logo string) storage.DomainInfo {
+	addressesInfo []*middleware.AddressInfo,
+	title string, logo string) *storage.DomainInfo {
 	var domain storage.DomainInfo
 	domain.Host = rawDom.Host
-	domain.IsDown = rawDom.Status == "DNS" || rawDom.Status == "ERROR"
+	domain.IsDown = rawDom.Status == "DNS" || rawDom.Status == "ERROR" || rawDom.Status == ""
 	domain.Severs = []storage.ServerInfo{}
 	if domain.IsDown {
-		return domain
+		return &domain
 	}
 	var grades = map[string]int{"A+": 10, "A": 9, "A-": 8, "B": 7, "C": 6, "D": 5, "E": 4, "F": 3, "M": 2, "T": 1}
 	lowestGrade := "A+"
@@ -51,56 +117,5 @@ func mapDomainInfo(rawDom *middleware.DomainInfo,
 	domain.SSLGrade = lowestGrade
 	domain.Title = title
 	domain.Logo = logo
-	return domain
-}
-
-// CreateCtrl :
-func CreateCtrl(
-	tagXtractor *middleware.TagXtractor,
-	domainInfoXtractor *middleware.DomainInfoXtractor,
-	addressInfoXtractor *middleware.AddressInfoXtractor,
-	repo *storage.DomainInfoRepo) *DomainInfoCtrl {
-	return &DomainInfoCtrl{
-		Get: func(url string) (DomainInfo, error) {
-			// Get domain info from api.ssllabs.com
-			rawDomInfo, err := domainInfoXtractor.Get(url)
-			if err != nil {
-				return DomainInfo{}, err
-			}
-			// Get address infor per server of domain
-			endpointsLength := len(rawDomInfo.Endpoints)
-			servers := make([]middleware.AddressInfo, endpointsLength)
-			for idx, endpoint := range rawDomInfo.Endpoints {
-				servers[idx] = addressInfoXtractor.Get(endpoint.IPAddress)
-			}
-			// Det title and logo info
-			title, logo := tagXtractor.GetTitleAndLogo(url)
-			// Map everything in one object
-			var newDomInfo storage.DomainInfo = mapDomainInfo(&rawDomInfo, servers, title, logo)
-			// Get a previous record of the given host
-			oldDomInfo, err := repo.Get(url)
-			// Save the new one record
-			repo.Upsert(newDomInfo)
-			// If no record or the last record is to young (1Hr)
-			// Return the domain info without providing PreviousSSLGrade or ServersChanged
-			domInfo := DomainInfo{
-				IsDown:   newDomInfo.IsDown,
-				Severs:   newDomInfo.Severs,
-				SSLGrade: newDomInfo.SSLGrade,
-				Title:    newDomInfo.Title,
-				Logo:     newDomInfo.Logo,
-			}
-			if err != nil || oldDomInfo.LastUpdated < time.Now().Add(time.Duration(-3.6e+12)).UnixNano() {
-				return domInfo, nil
-			}
-			// Otherwise return domain info with PreviousSSLGrade and ServersChanged
-			domInfo.PreviousSSLGrade = oldDomInfo.SSLGrade
-			domInfo.ServersChanged = !reflect.DeepEqual(newDomInfo.Severs, oldDomInfo.Severs)
-			return domInfo, nil
-		},
-		GetAll: func() []storage.DomainHistory {
-			history := repo.GetAll()
-			return history
-		},
-	}
+	return &domain
 }

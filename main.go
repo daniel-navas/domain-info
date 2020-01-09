@@ -11,13 +11,13 @@ import (
 )
 
 func main() {
-	domainInfoXtrator := new(middleware.DomainInfoXtractor)
-	tagXtractor := new(middleware.TagXtractor)
+	domainInfoXtrator := middleware.NewDomainInfoXtractor()
+	tagXtractor := middleware.NewTagXtractor()
 	repo, err := storage.NewDomainInfoRepo("postgresql://maxroach@localhost:26257/domainsdb?sslmode=disable")
 	if err != nil {
 		log.Fatalln("Error connecting to the database: ", err)
 	} else {
-		addressInfoXtractor := new(middleware.AddressInfoXtractor)
+		addressInfoXtractor := middleware.NewAddressInfoXtractor()
 		ctrl := controllers.CreateCtrl(tagXtractor, domainInfoXtrator, addressInfoXtractor, repo)
 		router := createRouter(ctrl)
 		http.ListenAndServe(":3333", router)
